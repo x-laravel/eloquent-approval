@@ -1,0 +1,44 @@
+{
+    "name": "x-laravel/eloquent-approval",
+    "description": "Approval process for Laravel Eloquent models.",
+    "keywords": ["laravel", "eloquent", "approval"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "X-Adam",
+            "email": "www@mehmetogmen.com.tr",
+            "homepage": "https://mehmetogmen.com.tr"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/database": "^12.0|^13.0",
+        "illuminate/support": "^12.0|^13.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^10.0|^11.0",
+        "phpunit/phpunit": "^11.0|^12.0",
+        "mockery/mockery": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "XLaravel\\EloquentApproval\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "XLaravel\\EloquentApproval\\Tests\\": "tests/",
+            "XLaravel\\EloquentApproval\\Tests\\Database\\Factories\\": "tests/database/factories/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "XLaravel\\EloquentApproval\\ApprovalServiceProvider"
+            ]
+        }
+    }
+}

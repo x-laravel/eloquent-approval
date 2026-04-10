@@ -1,0 +1,214 @@
+<?php
+
+namespace XLaravel\EloquentApproval\Tests;
+
+use Illuminate\Support\Carbon;
+use XLaravel\EloquentApproval\ApprovalScope;
+use XLaravel\EloquentApproval\ApprovalStatuses;
+use XLaravel\EloquentApproval\Tests\Models\Entity;
+use PHPUnit\Framework\Attributes\Test;
+
+class ApprovalScopeTest extends TestCase
+{
+    #[Test]
+    public function it_retrieves_only_approved_by_default()
+    {
+        $this->createOneEntityFromEachStatus();
+
+        $entities = Entity::all();
+
+        $this->assertNotEmpty($entities);
+
+        foreach ($entities as $entity) {
+            $this->assertEquals(
+                ApprovalStatuses::APPROVED,
+                $entity->approval_status
+            );
+        }
+    }
+
+    #[Test]
+    public function it_can_retrieve_all()
+    {
+        $this->createOneEntityFromEachStatus();
+
+        $entities = Entity::withAnyApproval()->get();
+
+        $totalCount = Entity::withoutGlobalScope(new ApprovalScope())->count();
+
+        $this->assertCount($totalCount, $entities);
+    }
+
+    #[Test]
+    public function it_can_be_disabled_on_the_model()
+    {
+        $this->createOneEntityFromEachStatus();
+
+        $totalCount = Entity::withoutGlobalScope(new ApprovalScope())->count();
+
+        $entityWithApprovalScopeDisabled = new class extends Entity {
+            protected $table = 'entities';
+
+            public function isApprovalScopeDisabled(): bool
+            {
+                return true;
+            }
+        };
+
+        $entities = $entityWithApprovalScopeDisabled->newQuery()->get();
+
+        $this->assertEquals($totalCount, count($entities));
+    }
+
+    #[Test]
+    public function it_can_retrieve_only_pending()
+    {
+        $this->createOneEntityFromEachStatus();
+
+        $entities = Entity::onlyPending()->get();
+
+        $this->assertNotEmpty($entities);
+
+        foreach ($entities as $entity) {
+            $this->assertEquals(
+                ApprovalStatuses::PENDING,
+                $entity->approval_status
+            );
+        }
+    }
+
+    #[Test]
+    public function it_can_retrieve_only_rejected()
+    {
+        $this->createOneEntityFromEachStatus();
+
+        $entities = Entity::onlyRejected()->get();
+
+        $this->assertNotEmpty($entities);
+
+        foreach ($entities as $entity) {
+            $this->assertEquals(
+                ApprovalStatuses::REJECTED,
+                $entity->approval_status
+            );
+        }
+    }
+
+    #[Test]
+    public function it_can_retrieve_only_approved()
+    {
+        $this->createOneEntityFromEachStatus();
+
+        $entities = Entity::onlyApproved()->get();
+
+        $this->assertNotEmpty($entities);
+
+        foreach ($entities as $entity) {
+            $this->assertEquals(
+                ApprovalStatuses::APPROVED,
+                $entity->approval_status
+            );
+        }
+    }
+
+    #[Test]
+    public function it_can_approve_entities()
+    {
+        $this->createOneEntityFromEachStatus();
+
+        Entity::query()->approve();
+
+        $entities = Entity::withoutGlobalScope(new ApprovalScope())->get();
+
+        foreach ($entities as $entity) {
+            $this->assertEquals(ApprovalStatuses::APPROVED, $entity->approval_status);
+        }
+    }
+
+    #[Test]
+    public function it_can_reject_entities()
+    {
+        $this->createOneEntityFromEachStatus();
+
+        Entity::query()->reject();
+
+        $entities = Entity::withoutGlobalScope(new ApprovalScope())->get();
+
+        foreach ($entities as $entity) {
+            $this->assertEquals(ApprovalStatuses::REJECTED, $entity->approval_status);
+        }
+    }
+
+    #[Test]
+    public function it_can_suspend_entities()
+    {
+        $this->createOneEntityFromEachStatus();
+
+        Entity::query()->suspend();
+
+        $entities = Entity::withoutGlobalScope(new ApprovalScope())->get();
+
+        foreach ($entities as $entity) {
+            $this->assertEquals(ApprovalStatuses::PENDING, $entity->approval_status);
+        }
+    }
+
+    #[Test]
+    public function it_refreshes_approval_at_on_status_update()
+    {
+        foreach ($this->approvalActions as $action) {
+            $entityId = Entity::factory()->create()->id;
+
+            $timestampString = (new Entity())->freshTimestampString();
+
+            Entity::whereId($entityId)->{$action}();
+
+            $this->assertDatabaseHas('entities', [
+                'id' => $entityId,
+                'approval_at' => $timestampString
+            ]);
+        }
+    }
+
+    #[Test]
+    public function it_does_not_refresh_updated_at_on_status_update()
+    {
+
+        foreach ($this->approvalActions as $action) {
+            $timestampString = 
+                (New Entity())->fromDateTime(Carbon::now()->subHour());
+
+            $entityId = Entity::factory()->create([
+                'updated_at' => $timestampString
+            ])->id;
+
+            Entity::whereId($entityId)->{$action}();
+
+            $this->assertDatabaseHas('entities', [
+                'id' => $entityId,
+                'updated_at' => $timestampString
+            ]);
+        }
+    }
+
+    #[Test]
+    public function it_returns_number_of_updated_entities_on_status_update()
+    {
+        Entity::factory(3)->create();
+
+        foreach ($this->approvalActions as $action) {
+            $this->assertEquals(1, Entity::whereId(1)->{$action}());
+            $this->assertEquals(3, Entity::query()->{$action}());
+            $this->assertEquals(0, Entity::whereId(0)->{$action}());
+        }
+    }
+
+    protected function createOneEntityFromEachStatus()
+    {
+        Entity::factory()->suspended()->create();
+
+        Entity::factory()->approved()->create();
+
+        Entity::factory()->rejected()->create();
+    }
+}
